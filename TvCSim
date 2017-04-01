@@ -1,0 +1,77 @@
+---
+title: "Simulation to demonstrate null distribution for hypothesis testing"
+output:
+  html_document: default
+  html_notebook: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE, cache=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(data.table)
+library(ggplot2)
+```
+
+### Create sample data
+
+Create some sampel data or read in your own data if you like. 
+
+```{r, CreateData, cache=TRUE}
+historical_data <- data.frame(values=rnorm(1000, 100, 10))
+```
+### Create many Test and Control splits 
+
+For each test group percentage, split all rows into test or control. Record mean of Test and mean of Control. Then calculate absolute and percent difference.
+Repeat "iterations" number of times.
+
+```{r, Split, cache=TRUE}
+st <- proc.time()
+
+test_percent <- c(.5,.75,.8,.9,.95)   # Percent of audience that will be in Test group
+iterations <- 200                     # Number of iterations at each Test group percentage
+results <- data.frame()
+
+
+
+for (j in 1:length(test_percent)){
+  for (i in 1:iterations) {
+    test_rows <- sample(nrow(historical_data),(nrow(historical_data)*test_percent[j]))
+  
+    test_mean <- mean(historical_data$values[test_rows])
+    control_mean <- mean(historical_data$values[-test_rows])
+    
+    row <- cbind(test_percent[j],i,control_mean,test_mean)
+    results <- rbind(results,row)
+  }
+}
+
+time <- proc.time()-st
+
+names(results)[1]<-"PercentTest"
+names(results)[2]<- "Iterations"
+results$PercentTest<-as.factor(results$PercentTest)
+# Calculate absolute and percent difference for each iteration.
+results$abs_diff <- results$test_mean - results$control_mean
+results$perc_diff <- results$abs_diff/results$control_mean
+
+```
+Histograms show distribution for different holdout percentages.
+
+```{r,OverlaidHistograms}
+ggplot(results, aes(x=perc_diff,fill=PercentTest)) +
+      geom_density(alpha=.3)
+```
+
+Sample values at different percentiles for 80% Test. Represents % change in Spend needed to be statistically significance at each level.  
+
+```{r, Percentiles}
+quantile(results$perc_diff[results$PercentTest=="0.8"], c(.5,.8,.9,.95))
+
+```
+
+What are the odds of specific percent change for a particular hold out 
+```{r, Percentile21}
+ecdf(results$perc_diff[results$PercentTest=="0.95"])(.021)
+
+```
